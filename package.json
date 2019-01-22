@@ -1,0 +1,19 @@
+{
+  "name": "fast-babel-register",
+  "version": "1.0.0",
+  "description": "optimized babel require hook",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Swatinem/fast-babel-register.git"
+  },
+  "author": "Arpad Borsos <arpad.borsos@googlemail.com>",
+  "main": "index.js",
+  "dependencies": {
+    "pirates": "^4.0.0",
+    "source-map-support": "^0.5.9"
+  },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0-0"
+  }
+}
