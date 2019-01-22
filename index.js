@@ -44,7 +44,7 @@ function compileHook(code, filename) {
   }
 }
 
-export default function register(opts) {
+module.exports = function register(opts) {
   const { ignoreNodeModules = false } = opts;
   delete opts.ignoreNodeModules;
   babelOptions = babel.loadOptions(opts);
@@ -53,4 +53,4 @@ export default function register(opts) {
     exts: opts.extensions || babel.DEFAULT_EXTENSIONS,
     ignoreNodeModules
   });
-}
+};
