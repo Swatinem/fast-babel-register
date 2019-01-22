@@ -1,8 +1,11 @@
 const sourceMapSupport = require("source-map-support");
 const babel = require("@babel/core");
 const pirates = require("pirates");
+const path = require("path");
+const fsExtra = require("fs-extra");
 
 const maps = {};
+let cache = {};
 let babelOptions = {};
 
 sourceMapSupport.install({
@@ -22,13 +25,19 @@ sourceMapSupport.install({
 });
 
 function compile(code, filename) {
-  const compiled = babel.transformSync(code, babelOptions);
+  const cacheKey = `${filename}:${code}`;
+  let cached = cache[cacheKey];
 
-  if (compiled.map) {
-    maps[filename] = compiled.map;
+  if (!cached) {
+    cached = babel.transformSync(code, { ...babelOptions, filename });
+    cache[cacheKey] = { code: cached.code, map: cached.map };
   }
 
-  return compiled.code;
+  if (cached.map) {
+    maps[filename] = cached.map;
+  }
+
+  return cached.code;
 }
 
 let compiling = false;
@@ -44,13 +53,38 @@ function compileHook(code, filename) {
   }
 }
 
-module.exports = function register(opts) {
-  const { ignoreNodeModules = false } = opts;
-  delete opts.ignoreNodeModules;
-  babelOptions = babel.loadOptions(opts);
-  babelOptions.ast = false;
+module.exports = function register(options) {
+  const {
+    ignoreNodeModules = false,
+    extensions: exts = babel.DEFAULT_EXTENSIONS,
+    cache: cacheFilename = path.join(
+      __dirname,
+      "..",
+      ".cache",
+      "fast-babel-register-cache.json"
+    )
+  } = options;
+
+  if (cacheFilename) {
+    function saveCache() {
+      fsExtra.outputJsonSync(cacheFilename, cache, { spaces: "  " });
+    }
+    process.on("exit", saveCache);
+    process.nextTick(saveCache);
+
+    try {
+      cache = fsExtra.readJsonSync(cacheFilename);
+    } catch (err) {}
+  }
+
+  delete options.cache;
+  delete options.ignoreNodeModules;
+  delete options.extensions;
+
+  babelOptions = options;
+  // babelOptions = babel.loadOptions(options)
   pirates.addHook(compileHook, {
-    exts: opts.extensions || babel.DEFAULT_EXTENSIONS,
+    exts,
     ignoreNodeModules
   });
 };
