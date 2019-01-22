@@ -1,6 +1,6 @@
 {
   "name": "fast-babel-register",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "optimized babel require hook",
   "license": "MIT",
   "repository": {
