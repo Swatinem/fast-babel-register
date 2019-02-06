@@ -4,37 +4,51 @@ const pirates = require("pirates");
 const path = require("path");
 const fsExtra = require("fs-extra");
 
-const maps = {};
 let cache = {};
+let cacheClean = false;
 let babelOptions = {};
 
 sourceMapSupport.install({
-  handleUncaughtExceptions: false,
   environment: "node",
-  retrieveSourceMap(source) {
-    const map = maps && maps[source];
-    if (map) {
-      return {
-        url: null,
-        map: map
-      };
-    } else {
+  retrieveFile(filename) {
+    const cached = cache[filename];
+    if (!cached || !cached.source) {
       return null;
     }
+    return {
+      url: null,
+      map: cached.map
+    };
+  },
+  retrieveSourceMap(filename) {
+    const cached = cache[filename];
+    if (!cached || !cached.map) {
+      return null;
+    }
+    return {
+      url: null,
+      map: cached.map
+    };
   }
 });
 
 function compile(code, filename) {
-  const cacheKey = `${filename}:${code}`;
-  let cached = cache[cacheKey];
+  let cached = cache[filename];
 
-  if (!cached) {
-    cached = babel.transformSync(code, { ...babelOptions, filename });
-    cache[cacheKey] = { code: cached.code, map: cached.map };
-  }
-
-  if (cached.map) {
-    maps[filename] = cached.map;
+  if (!cached || cached.source !== code) {
+    cached = babel.transformSync(code, {
+      ...babelOptions,
+      filename,
+      sourceMaps: true
+    });
+    cached.sources = cached.map.sourcesContent = undefined;
+    cache[filename] = {
+      timestamp: Date.now(),
+      source: code,
+      code: cached.code,
+      map: cached.map
+    };
+    cacheClean = false;
   }
 
   return cached.code;
@@ -53,6 +67,25 @@ function compileHook(code, filename) {
   }
 }
 
+function mergeIntoCache(cacheFilename) {
+  if (cacheClean) {
+    return;
+  }
+  try {
+    const oldCache = fsExtra.readJsonSync(cacheFilename);
+    for (const key of Object.keys(oldCache)) {
+      const oldEntry = oldCache[key];
+      const newEntry = cache[key];
+      if (!newEntry || oldEntry.timestamp > newEntry.timestamp) {
+        cache[key] = oldEntry;
+      }
+    }
+  } finally {
+    fsExtra.outputJsonSync(cacheFilename, cache);
+    cacheClean = true;
+  }
+}
+
 module.exports = function register(options) {
   const {
     ignoreNodeModules = false,
@@ -66,14 +99,19 @@ module.exports = function register(options) {
   } = options;
 
   if (cacheFilename) {
-    function saveCache() {
-      fsExtra.outputJsonSync(cacheFilename, cache, { spaces: "  " });
-    }
-    process.on("exit", saveCache);
+    const saveCache = () => mergeIntoCache(cacheFilename);
+    const saveAndExit = () => {
+      saveCache();
+      process.exit();
+    };
+    process.on("beforeExit", saveCache);
     process.nextTick(saveCache);
+    process.on("SIGINT", saveAndExit);
+    process.on("SIGTERM", saveAndExit);
 
     try {
       cache = fsExtra.readJsonSync(cacheFilename);
+      cacheClean = true;
     } catch (err) {}
   }
 
