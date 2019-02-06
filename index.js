@@ -80,6 +80,7 @@ function mergeIntoCache(cacheFilename) {
         cache[key] = oldEntry;
       }
     }
+  } catch (e) {
   } finally {
     fsExtra.outputJsonSync(cacheFilename, cache);
     cacheClean = true;
