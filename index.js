@@ -41,6 +41,9 @@ function compile(code, filename) {
       filename,
       sourceMaps: true
     });
+    if (!cached) {
+      return code;
+    }
     cached.sources = cached.map.sourcesContent = undefined;
     cache[filename] = {
       timestamp: Date.now(),
